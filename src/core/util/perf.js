@@ -1,5 +1,5 @@
 import { inBrowser } from './env'
-
+//  这个方法应该是获取标签在浏览器加载的时间快照
 export let mark
 export let measure
 

@@ -25,6 +25,7 @@ import {
  * Option overwriting strategies are functions that handle
  * how to merge a parent option value and a child option
  * value into the final value.
+ * 覆盖策略是一个函数, 定义如何覆盖父级的对象
  */
 const strats = config.optionMergeStrategies
 
@@ -34,19 +35,23 @@ const strats = config.optionMergeStrategies
 if (process.env.NODE_ENV !== 'production') {
   strats.el = strats.propsData = function (parent, child, vm, key) {
     if (!vm) {
+      // key 这个配置只能在 new 一个实例的时候使用, 必须传入你创建的vm new Vue
       warn(
         `option "${key}" can only be used during instance ` +
         'creation with the `new` keyword.'
       )
     }
+    //优先使用child的值
     return defaultStrat(parent, child)
   }
 }
 
 /**
  * Helper that recursively merges two data objects together.
+ * 一个小助手, 能递归合并两个数据对象在一起, 如果这个对象已经被监控, 会触发双向绑定
  */
 function mergeData (to: Object, from: ?Object): Object {
+  //节省时间
   if (!from) return to
   let key, toVal, fromVal
 
@@ -61,12 +66,16 @@ function mergeData (to: Object, from: ?Object): Object {
     toVal = to[key]
     fromVal = from[key]
     if (!hasOwn(to, key)) {
+      //这个方法是给to的属性key赋值,
+      // 如果to有__ob__属性, 还会把新合并的这个值设置成监控模式 , 并且即刻通知更新
+      // 会调用这两个方法 defineReactive(ob.value, key, val)  ob.dep.notify()
       set(to, key, fromVal)
     } else if (
       toVal !== fromVal &&
       isPlainObject(toVal) &&
       isPlainObject(fromVal)
     ) {
+      //如果val都是对象,继续合并
       mergeData(toVal, fromVal)
     }
   }
@@ -83,6 +92,8 @@ export function mergeDataOrFn (
 ): ?Function {
   if (!vm) {
     // in a Vue.extend merge, both should be functions
+    //节省时间
+    //childVal必须是函数
     if (!childVal) {
       return parentVal
     }
@@ -94,6 +105,8 @@ export function mergeDataOrFn (
     // merged result of both functions... no need to
     // check if parentVal is a function here because
     // it has to be a function to pass previous merges.
+    // 当父子都到位, 我们需要返回一个函数, 这个函数返回了两个合并的几个
+    // 不需要确认 parentval是个函数 因为它必须是传递给前一个合并的函数?
     return function mergedDataFn () {
       return mergeData(
         typeof childVal === 'function' ? childVal.call(this, this) : childVal,
@@ -102,7 +115,7 @@ export function mergeDataOrFn (
     }
   } else {
     return function mergedInstanceDataFn () {
-      // instance merge
+      // instance merge 合并
       const instanceData = typeof childVal === 'function'
         ? childVal.call(vm, vm)
         : childVal
@@ -147,6 +160,7 @@ function mergeHook (
   parentVal: ?Array<Function>,
   childVal: ?Function | ?Array<Function>
 ): ?Array<Function> {
+  //如果有child, 看看有没有parent, 如果有合并parent和 child,  如果没有, 返回child数组
   const res = childVal
     ? parentVal
       ? parentVal.concat(childVal)
@@ -179,6 +193,8 @@ LIFECYCLE_HOOKS.forEach(hook => {
  * When a vm is present (instance creation), we need to do
  * a three-way merge between constructor options, instance
  * options and parent options.
+ *
+ * 合并构造函数Object的配置 和 实例的配置 和 父级的配置
  */
 function mergeAssets (
   parentVal: ?Object,
@@ -204,6 +220,8 @@ ASSET_TYPES.forEach(function (type) {
  *
  * Watchers hashes should not overwrite one
  * another, so we merge them as arrays.
+ *
+ * 避免覆盖另一个, 这里把他们合并成数组
  */
 strats.watch = function (
   parentVal: ?Object,
@@ -215,13 +233,15 @@ strats.watch = function (
   if (parentVal === nativeWatch) parentVal = undefined
   if (childVal === nativeWatch) childVal = undefined
   /* istanbul ignore if */
+  //节省时间
   if (!childVal) return Object.create(parentVal || null)
   if (process.env.NODE_ENV !== 'production') {
     assertObjectType(key, childVal, vm)
   }
   if (!parentVal) return childVal
-  const ret = {}
+  const ret = {} //复制父级
   extend(ret, parentVal)
+  //最终合并成数组形式
   for (const key in childVal) {
     let parent = ret[key]
     const child = childVal[key]
@@ -237,6 +257,7 @@ strats.watch = function (
 
 /**
  * Other object hashes.
+ * 简单的合并对象
  */
 strats.props =
 strats.methods =
@@ -260,6 +281,7 @@ strats.provide = mergeDataOrFn
 
 /**
  * Default strategy.
+ * 选择其中一个作为默认
  */
 const defaultStrat = function (parentVal: any, childVal: any): any {
   return childVal === undefined
@@ -269,6 +291,7 @@ const defaultStrat = function (parentVal: any, childVal: any): any {
 
 /**
  * Validate component names
+ * 检测不能使用vue保留字
  */
 function checkComponents (options: Object) {
   for (const key in options.components) {
@@ -294,6 +317,7 @@ export function validateComponentName (name: string) {
 /**
  * Ensure all props option syntax are normalized into the
  * Object-based format.
+ * 确保所有的属性选项标签语法 都规范化, 都基于对象格式 , 如果key的val不存在 会设置一个默认的val  => { type : null }
  */
 function normalizeProps (options: Object, vm: ?Component) {
   const props = options.props
@@ -358,6 +382,8 @@ function normalizeInject (options: Object, vm: ?Component) {
 
 /**
  * Normalize raw function directives into object format.
+ * 指令格式化
+ * { direct1: fn1, direct2: fn2 } => { direct1: { bind: fn1, update, fn1 } ,...}
  */
 function normalizeDirectives (options: Object) {
   const dirs = options.directives
@@ -382,8 +408,9 @@ function assertObjectType (name: string, value: any, vm: ?Component) {
 }
 
 /**
- * Merge two option objects into a new one.
+ * Merge two option objects into a new one. 合并两个配置对象
  * Core utility used in both instantiation and inheritance.
+ * 实例化和继承中使用的核心实用工具。
  */
 export function mergeOptions (
   parent: Object,

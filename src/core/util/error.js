@@ -8,6 +8,7 @@ import { pushTarget, popTarget } from '../observer/dep'
 
 export function handleError (err: Error, vm: any, info: string) {
   // Deactivate deps tracking while processing error handler to avoid possible infinite rendering.
+  // 这个方法先调用用户配置的 erroHandler 方法输出, 如果没有配置, 在开发测试环境调用warn输出, 在非浏览器环境用 throw抛出错误
   // See: https://github.com/vuejs/vuex/issues/1505
   pushTarget()
   try {

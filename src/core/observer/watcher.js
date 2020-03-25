@@ -22,6 +22,8 @@ let uid = 0
  * A watcher parses an expression, collects dependencies,
  * and fires callback when the expression value changes.
  * This is used for both the $watch() api and directives.
+ 一个 watcher编译成 一个表达式 和 依赖集合, 还能出发回调当 v-model的值改变
+ 这也能用到wathcer api中, 如果 vm.$watch('abc', fn);
  */
 export default class Watcher {
   vm: Component;
@@ -49,13 +51,16 @@ export default class Watcher {
     options?: ?Object,
     isRenderWatcher?: boolean
   ) {
+    //这个watcher所属的vm
     this.vm = vm
     if (isRenderWatcher) {
       vm._watcher = this
     }
+    // 一个vm 有多个watchers , vm.$watch(a,fn1)  vm.$watch(b,fn2) {{b.UpperCase()}} 等等
     vm._watchers.push(this)
     // options
     if (options) {
+      //是否深度检测依赖
       this.deep = !!options.deep
       this.user = !!options.user
       this.lazy = !!options.lazy
@@ -77,8 +82,10 @@ export default class Watcher {
       : ''
     // parse expression for getter
     if (typeof expOrFn === 'function') {
+      //监控函数
       this.getter = expOrFn
     } else {
+      //监控表达式, 注意 这里也会返回一个路径的函数
       this.getter = parsePath(expOrFn)
       if (!this.getter) {
         this.getter = noop
@@ -103,6 +110,9 @@ export default class Watcher {
     let value
     const vm = this.vm
     try {
+      // 因为传入了 vm, 所以在methods中可以取得this.data.abc
+      // 比如 this.getter 是 fucntion(){ return this.price * this.nums; }; 因为执行这个函数, 也就会去获取 this.price 和 this.nums的值
+      // 就会分别触发这两个数据的get方法, 然后这个watcher就会加入这两个数据的dep, this.push(depq) this.push(dep2); 通过这一步就收集了这个函数的两个依赖
       value = this.getter.call(vm, vm)
     } catch (e) {
       if (this.user) {
@@ -113,6 +123,7 @@ export default class Watcher {
     } finally {
       // "touch" every property so they are all tracked as
       // dependencies for deep watching
+      //“触摸”每一个属性，这样它们都被跟踪为 深度观察依赖
       if (this.deep) {
         traverse(value)
       }
@@ -124,6 +135,7 @@ export default class Watcher {
 
   /**
    * Add a dependency to this directive.
+   * 添加一个依赖到这个指令
    */
   addDep (dep: Dep) {
     const id = dep.id
@@ -206,6 +218,7 @@ export default class Watcher {
   /**
    * Evaluate the value of the watcher.
    * This only gets called for lazy watchers.
+   * 计算一个watcher的值, 这个只会被 延迟watchers调用
    */
   evaluate () {
     this.value = this.get()
@@ -214,6 +227,7 @@ export default class Watcher {
 
   /**
    * Depend on all deps collected by this watcher.
+   * 通过这个watcher, 收集所有的依赖?
    */
   depend () {
     let i = this.deps.length
@@ -224,12 +238,14 @@ export default class Watcher {
 
   /**
    * Remove self from all dependencies' subscriber list.
+   * 从所有的依赖订阅清单中移除自己
    */
   teardown () {
     if (this.active) {
       // remove self from vm's watcher list
       // this is a somewhat expensive operation so we skip it
       // if the vm is being destroyed.
+      // 移除依赖是一个昂贵的操作, 所有如果这个vm已经销毁le, 我们就跳一跳
       if (!this.vm._isBeingDestroyed) {
         remove(this.vm._watchers, this)
       }
